@@ -55,6 +55,7 @@ sealed trait ConcatRegex extends Regex {
 sealed trait OptionRegex extends Regex {
   val options: List[Regex]
   private lazy val offsets = options.scanLeft(BigInt(0)){_ + _.combinations}
+  private lazy val optionsZipOffsets = options zip offsets
   override lazy val combinations = (options map (_.combinations)).sum
   override lazy val allMatches = options.toStream flatMap (_.allMatches)
   override def nth(n: BigInt) = nthRec(options, n)
@@ -64,7 +65,7 @@ sealed trait OptionRegex extends Regex {
     case Nil => throw new NoSuchElementException
   }
   private[regex_keyspace] override def matchPrefix(s: String) = {
-    for ((opt, off) <- options zip offsets;
+    for ((opt, off) <- optionsZipOffsets;
          (n, rest) <- opt.matchPrefix(s)) yield (n + off, rest)
   }
 }
@@ -113,6 +114,11 @@ final case class Repeat(x: Regex, count: Range) extends OptionRegex {
 case object DigitChr extends OptionRegex {
   val options = ('0' to '9').toList map Chr
   override val toString = "\\d"
+  private[regex_keyspace] override def matchPrefix(s: String) = {
+    if (s.length >= 1 && ('0' <= s(0)) && (s(0)) <= '9') {
+      Iterable((s(0) - '0', s.substring(1)))
+    } else Nil
+  }
 }
 
 case object WordChr extends OptionRegex {
