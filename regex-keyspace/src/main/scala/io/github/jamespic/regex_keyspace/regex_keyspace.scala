@@ -54,6 +54,7 @@ sealed trait ConcatRegex extends Regex {
 
 sealed trait OptionRegex extends Regex {
   val options: List[Regex]
+  private lazy val offsets = options.scanLeft(BigInt(0)){_ + _.combinations}
   override lazy val combinations = (options map (_.combinations)).sum
   override lazy val allMatches = options.toStream flatMap (_.allMatches)
   override def nth(n: BigInt) = nthRec(options, n)
@@ -63,7 +64,6 @@ sealed trait OptionRegex extends Regex {
     case Nil => throw new NoSuchElementException
   }
   private[regex_keyspace] override def matchPrefix(s: String) = {
-    val offsets = options.scanLeft(BigInt(0)){_ + _.combinations}
     for ((opt, off) <- options zip offsets;
          (n, rest) <- opt.matchPrefix(s)) yield (n + off, rest)
   }
@@ -155,20 +155,9 @@ object RegexAST extends RegexAST {
         assert(res.toString == s)
         res
     }
-
-    def main(args: Array[String]) {
-        val regex = parse(args(0)).get
-        args.tail match {
-            case Array() | Array("count") => println(regex.combinations)
-            case Array("all") =>
-              for (s <- regex.allMatches) println(s)
-            case Array(n) =>
-              for (i <- 0 until n.toInt) println(regex.random)
-        }
-    }
 }
 
-case object Regex {
+object Regex {
   protected[regex_keyspace] val rand = ThreadLocalRandom.current
   protected[regex_keyspace] val doubleMax = BigDecimal(Double.MaxValue).toBigInt
   protected[regex_keyspace] def selectOne[T](s: Stream[T]): T = selectOne(s.toList)
