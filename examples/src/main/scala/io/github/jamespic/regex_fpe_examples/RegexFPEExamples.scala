@@ -43,13 +43,13 @@ object NHSNumberEncrypter extends Encrypter("\\d{9}") with CycleWalkingEncrypter
   protected override def stripChecksum(s: String) = s.replace("-", "").substring(0, 9)
   protected override def reattachChecksum(s: String) = {
     val numbers = s map (_ - '0')
-    val checksum = (numbers zip (10 to 2 by -1) map {case (x, y) => x * y}).sum % 11
+    val checksum = 11 - (numbers zip (10 to 2 by -1) map {case (x, y) => x * y}).sum % 11
     val checkDigit = checksum match {
       case 11 => Some("0")
       case 10 => None
       case x => Some(x.toString)
     }
-    checkDigit map (digit => (s.grouped(3) ++ Seq(digit)).mkString("-"))
+    checkDigit map (digit => (s.grouped(3)).mkString("-") + digit)
   }
 }
 
