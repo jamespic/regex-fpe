@@ -108,7 +108,7 @@ final case class Opt(x: Regex) extends OptionRegex {
 
 final case class Repeat(x: Regex, count: Range) extends OptionRegex {
   override val options = count.map(size => TermList((1 to size).map(_ => x).toList)).toList
-  override val toString = s"$x{${if (count.size > 1) count.start + "," + count.end else count.start}"
+  override val toString = s"$x{${if (count.size > 1) count.start + "," + count.end else count.start}}"
 }
 
 case object DigitChr extends OptionRegex {
@@ -134,10 +134,10 @@ case object SpaceChr extends OptionRegex {
 class RegexAST extends RegexParsers with JavaTokenParsers {
   def chr = "[A-Za-z0-9 _]".r ^^ {s => Chr(s.charAt(0))}
   def chrRange = chr ~ "-" ~ chr ^^ {case c1 ~ "-" ~ c2 => ChrRange(c1, c2)}
-  def chrSet = "[" ~ rep(chrRange | chr) ~ "]" ^^ {case "[" ~ chrs ~ "]" => ChrSet(chrs)}
   def digitChr = "\\d" ^^^ DigitChr
   def wordChr = "\\w" ^^^ WordChr
   def spaceChr = "\\s" ^^^ SpaceChr
+  def chrSet = "[" ~ rep(chrRange | chr | digitChr | wordChr | spaceChr) ~ "]" ^^ {case "[" ~ chrs ~ "]" => ChrSet(chrs)}
   def singleChr = chr | chrSet | digitChr | wordChr | spaceChr
   def group: Parser[SplitGroup] = "(" ~ repsep(termList, "|") ~ ")" ^^ {case "(" ~ chrs ~ ")" => SplitGroup(chrs)}
   def repeatable = singleChr | group
