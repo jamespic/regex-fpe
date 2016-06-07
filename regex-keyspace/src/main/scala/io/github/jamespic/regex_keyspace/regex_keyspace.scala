@@ -68,6 +68,7 @@ sealed trait OptionRegex extends Regex {
     for ((opt, off) <- optionsZipOffsets;
          (n, rest) <- opt.matchPrefix(s)) yield (n + off, rest)
   }
+  override def random() = Regex.selectWeighted(options).random()
 }
 
 final case class Chr(c: Char) extends Regex {

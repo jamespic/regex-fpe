@@ -11,7 +11,7 @@ object EncrypterBenchmark extends App {
   var lastReport = System.nanoTime()
   var lastResult: String = _
   for (i <- 100000000 to 999999999) {
-    lastResult = encrypter.decrypt(encrypter.encrypt(encrypter.regexAST.nth(i), key, tweak), key, tweak)
+    lastResult = encrypter.decrypt(encrypter.encrypt(encrypter.regexAST.random(), key, tweak), key, tweak)
     if (i % 1000 == 0) {
       val newLastReport = System.nanoTime
       println(s"encrypting at a rate of ${1000.0 * 1000000000.0 / (newLastReport - lastReport)} per second")
