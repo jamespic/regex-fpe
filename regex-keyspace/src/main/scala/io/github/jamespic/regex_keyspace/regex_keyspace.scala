@@ -2,7 +2,7 @@ package io.github.jamespic.regex_keyspace
 
 import java.util.concurrent.ThreadLocalRandom
 
-import scala.collection.Iterable
+import scala.collection.{Iterable, SortedMap}
 import scala.util.parsing.combinator._
 
 sealed trait Regex {
@@ -81,18 +81,41 @@ final case class Chr(c: Char) extends Regex {
     if (s.startsWith(toString)) (BigInt(0), s.substring(1)) :: Nil else Nil
 }
 
+sealed trait SingleChrOptionRegex extends OptionRegex {
+  private lazy val charMap = extractCharMap(options)
+  private lazy val reverseCharMap = SortedMap.empty[BigInt, String] ++ charMap.map{case (a, b) => b -> a.toString}
+  private def extractCharMap(options: List[Regex], offset: BigInt = BigInt(0), map: Map[Char, BigInt] = Map.empty): Map[Char, BigInt] = options match {
+    case Chr(c) :: tail if options contains c =>
+      throw new IllegalStateException(s"Regex has multiple ways to match character $c")
+    case Chr(c) :: tail=> extractCharMap(tail, offset + 1, map + (c -> offset))
+    case (r: SingleChrOptionRegex) :: tail if (r.charMap.keySet intersect map.keySet).nonEmpty =>
+      throw new IllegalStateException(s"Regex has multiple ways to match characters ${r.charMap.keySet intersect map.keySet}")
+    case (r: SingleChrOptionRegex) :: tail =>
+      extractCharMap(tail, offset + r.charMap.size, map ++ r.charMap.mapValues(_ + offset))
+    case Nil => map
+    case _ => throw new IllegalStateException("SingleChrOptionRegex applied to non-single-char regex")
+  }
+  override lazy val combinations = BigInt(charMap.size)
+  override lazy val allMatches = reverseCharMap.values.toStream
+  override def nth(n: BigInt) = reverseCharMap(n)
+  private[regex_keyspace] override def matchPrefix(s: String) = {
+    if (s.length >= 1) {
+      charMap.get(s(0)).map(n => (n, s.substring(1))).toList
+    } else Nil
+  }
+  override def random() = Regex.selectOne(reverseCharMap.valuesIterator.toList)
+}
+
 final case class SplitGroup(options: List[Regex]) extends OptionRegex {
   override val toString = options.mkString("(","|",")")
 }
 
-final case class ChrSet(options: List[Regex]) extends OptionRegex {
+final case class ChrSet(options: List[Regex]) extends SingleChrOptionRegex {
   override val toString = options.mkString("[","","]")
 }
 
-final case class ChrRange(from: Chr, to: Chr) extends OptionRegex {
+final case class ChrRange(from: Chr, to: Chr) extends SingleChrOptionRegex {
   lazy val options = (from.c to to.c).map(Chr).toList
-  override lazy val combinations = to.c - from.c + BigInt(1)
-  override lazy val allMatches = Stream.range(from.c, (to.c + 1).toChar) map (_.toString)
   override def random() = (Regex.rand.nextInt(to.c - from.c) + from.c).toChar.toString
   override val toString = from.toString + "-" + to.toString
 }
@@ -111,22 +134,17 @@ final case class Repeat(x: Regex, count: Range) extends OptionRegex {
   override val toString = s"$x{${if (count.size > 1) count.start + "," + count.end else count.start}}"
 }
 
-case object DigitChr extends OptionRegex {
+case object DigitChr extends SingleChrOptionRegex {
   val options = ('0' to '9').toList map Chr
   override val toString = "\\d"
-  private[regex_keyspace] override def matchPrefix(s: String) = {
-    if (s.length >= 1 && ('0' <= s(0)) && (s(0)) <= '9') {
-      Iterable((s(0) - '0', s.substring(1)))
-    } else Nil
-  }
 }
 
-case object WordChr extends OptionRegex {
+case object WordChr extends SingleChrOptionRegex {
   val options = List('_') ++ ('0' to '9') ++ ('a' to 'z') ++ ('A' to 'Z') map Chr
   override val toString = "\\w"
 }
 
-case object SpaceChr extends OptionRegex {
+case object SpaceChr extends SingleChrOptionRegex {
   val options = List(' ', '\t') map Chr
   override val toString = "\\s"
 }
